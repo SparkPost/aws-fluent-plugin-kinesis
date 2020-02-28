@@ -88,7 +88,6 @@ module Fluent
 
       def data_formatter_create(conf)
         formatter = formatter_create
-        compressor = compressor_create
         if @data_key.nil?
           if @chomp_record
             ->(tag, time, record) {
@@ -96,27 +95,36 @@ module Fluent
               # Formatter calls chomp and removes separator from the end of each record.
               # This option is for compatible format with plugin v2.
               # https://github.com/awslabs/aws-fluent-plugin-kinesis/issues/142
-              compressor.call(formatter.format(tag, time, record).chomp.b)
+              # FIXME figure out how to format such that the value returns, is this pass by ref? is this returning the last executed statement?
+              # compressor.call(formatter.format(tag, time, record).chomp.b)
             }
           else
             ->(tag, time, record) {
               record = inject_values_to_record(tag, time, record)
-              compressor.call(formatter.format(tag, time, record).b)
+              # compressor.call(formatter.format(tag, time, record).b)
             }
           end
         else
           ->(tag, time, record) {
             raise InvalidRecordError, record unless record.is_a? Hash
             raise KeyNotFoundError.new(@data_key, record) if record[@data_key].nil?
-            compressor.call(record[@data_key].to_s.b)
+            # compressor.call(record[@data_key].to_s.b)
           }
         end
       end
 
+      # https://code-dojo.blogspot.com/2012/10/gzip-compressiondecompression-in-ruby.html
+      def gzip(string)
+        wio = StringIO.new("w")
+        w_gz = Zlib::GzipWriter.new(wio)
+        w_gz.write(string)
+        w_gz.close
+        compressed = wio.string
+      end
       def compressor_create
         case @compression
         when "zlib"
-          ->(data) { Zlib::Deflate.deflate(data) }
+          ->(data) { gzip(data) }
         else
           ->(data) { data }
         end
@@ -147,6 +155,8 @@ module Fluent
         chunk.open do |io|
           records = msgpack_unpacker(io).to_enum
           split_to_batches(records) do |batch, size|
+            # TODO how to get size of compressed_records? is that efficient? how do we get maximum efficiency here?
+            # TODO can this emit a metric so that we can track how much we're sending?
             log.debug(sprintf "Write chunk %s / %3d records / %4d KB", unique_id, batch.size, size/1024)
             batch_request_with_retry(batch, &block)
             log.debug("Finish writing chunk")

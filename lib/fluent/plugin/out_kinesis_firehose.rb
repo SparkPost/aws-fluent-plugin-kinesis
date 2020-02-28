@@ -44,10 +44,13 @@ module Fluent
       end
 
       def write(chunk)
+        c = compressor_create
         write_records_batch(chunk) do |batch|
+          #records = [{ data: c.call(batch.join(",").to_json)}]
           records = batch.map{|(data)|
-            { data: data }
+            { data: c.call(data.to_json + "\n") }
           }
+          #records = c.call(records.to_json)
           client.put_record_batch(
             delivery_stream_name: @delivery_stream_name,
             records: records,
