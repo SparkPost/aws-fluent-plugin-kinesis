@@ -114,12 +114,7 @@ module Fluent
       end
 
       def compressor_create
-        case @compression
-        when "zlib"
-          ->(data) { Zlib::Deflate.deflate(data) }
-        else
-          ->(data) { data }
-        end
+        ->(data) { data }
       end
 
       def format_for_api(&block)

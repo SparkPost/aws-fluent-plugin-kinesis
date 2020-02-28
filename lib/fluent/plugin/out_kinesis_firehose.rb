@@ -48,6 +48,7 @@ module Fluent
           records = batch.map{|(data)|
             { data: data }
           }
+          records = ZLib::Deflate.deflate(records) if @compression == 'zlib'
           client.put_record_batch(
             delivery_stream_name: @delivery_stream_name,
             records: records,
