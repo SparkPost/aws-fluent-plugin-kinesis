@@ -45,15 +45,16 @@ module Fluent
 
       def write(chunk)
         c = compressor_create
+        # might be faster to prepare all the batches and post them at once... if that can fit
         write_records_batch(chunk) do |batch|
-          #records = [{ data: c.call(batch.join(",").to_json)}]
           records = batch.map{|(data)|
-            { data: c.call(data.to_json + "\n") }
+            data.to_json + "\n"
           }
-          #records = c.call(records.to_json)
+          # this purely illustrates that we can assemble uncompressed chunks into single gzipped archives
+          # does not testify to benchmarking
           client.put_record_batch(
             delivery_stream_name: @delivery_stream_name,
-            records: records,
+            records: [{ data: c.call(records.join(""))}],
           )
         end
       end
